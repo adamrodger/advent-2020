@@ -13,7 +13,7 @@ fi
 
 # make sure repo is up to date
 git fetch
-git checkout -b dev/$1 origin/master
+git checkout -b dev/$1 origin/main
 git push -u origin dev/$1
 
 # create solution
@@ -26,7 +26,7 @@ sed -i "s/XX/$1/g" tests/AdventOfCode.Tests/Day$1Tests.cs
 sed -i "s/using FactAttribute = System.Runtime.CompilerServices.CompilerGeneratedAttribute;//g" tests/AdventOfCode.Tests/Day$1Tests.cs
 
 # download input file
-curl -L "https://adventofcode.com/2020/day/$1/input" -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:65.0) Gecko/20100101 Firefox/65.0" -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8" -H "Accept-Language: en-US,en;q=0.5" --compressed -H "Referer: https://adventofcode.com/2020/day/$1" -H "Connection: keep-alive" -H "Cookie: session=$AOC_COOKIE" -H "Upgrade-Insecure-Requests: 1" -H "Cache-Control: max-age=0" -o src/AdventOfCode/inputs/day$1.txt
+curl -L "https://adventofcode.com/2020/day/$1/input" -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:65.0) Gecko/20100101 Firefox/65.0" -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8" -H "Accept-Language: en-US,en;q=0.5" -H "Referer: https://adventofcode.com/2020/day/$1" -H "Connection: keep-alive" -H "Cookie: session=$AOC_COOKIE" -H "Upgrade-Insecure-Requests: 1" -H "Cache-Control: max-age=0" -o src/AdventOfCode/inputs/day$1.txt
 
 # start VS and the web page
 start https://adventofcode.com/2020/day/$1
