@@ -159,6 +159,54 @@
             }
         }
 
+        public static IEnumerable<T> Adjacent8<T>(this T[,] grid, int x, int y)
+        {
+            bool rowAbove = y - 1 >= 0;
+            bool rowBelow = y + 1 < grid.GetLength(0);
+            bool columnBefore = x - 1 >= 0;
+            bool columnAfter = x + 1 < grid.GetLength(1);
+
+            if (rowAbove && columnBefore)
+            {
+                yield return grid[y - 1, x - 1];
+            }
+
+            if (rowAbove)
+            {
+                yield return grid[y - 1, x];
+            }
+
+            if (rowAbove && columnAfter)
+            {
+                yield return grid[y - 1, x + 1];
+            }
+
+            if (columnBefore)
+            {
+                yield return grid[y, x - 1];
+            }
+
+            if (columnAfter)
+            {
+                yield return grid[y, x + 1];
+            }
+
+            if (rowBelow && columnBefore)
+            {
+                yield return grid[y + 1, x - 1];
+            }
+
+            if (rowBelow)
+            {
+                yield return grid[y + 1, x];
+            }
+
+            if (rowBelow && columnAfter)
+            {
+                yield return grid[y + 1, x + 1];
+            }
+        }
+
         public static char[,] ToGrid(this string[] input)
         {
             // y,x remember, not x,y
