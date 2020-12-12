@@ -52,9 +52,9 @@ namespace AdventOfCode.Utilities
             switch (bearing)
             {
                 case Bearing.North:
-                    return (position.x, position.y - steps);
-                case Bearing.South:
                     return (position.x, position.y + steps);
+                case Bearing.South:
+                    return (position.x, position.y - steps);
                 case Bearing.East:
                     return (position.x + steps, position.y);
                 case Bearing.West:
