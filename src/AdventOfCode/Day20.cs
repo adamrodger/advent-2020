@@ -32,10 +32,20 @@ namespace AdventOfCode
 
             // stitch the tiles together into an image
             char[,] image = Stitch(tiles);
+            image.Print();
 
             // rotate/flip the image until you start finding sea monsters
+            foreach (char[,] permutation in FlipAndRotatePermutations(image))
+            {
+                int count = CountMonsters(permutation);
 
-            return 0;
+                if (count > 0)
+                {
+                    return permutation.Search(cell => cell == '#').Count() - (count * 15);
+                }
+            }
+
+            throw new InvalidOperationException("Didn't find any monsters :(");
         }
 
         private static HashSet<long> FindCorners(Dictionary<long, char[,]> tiles, Dictionary<int, HashSet<long>> edges, Dictionary<long, int[]> edgeLookup)
@@ -127,19 +137,25 @@ namespace AdventOfCode
             (Dictionary<int, HashSet<long>> edges, Dictionary<long, int[]> edgeLookup) = GetEdgeLookups(tiles);
             HashSet<long> corners = FindCorners(tiles, edges, edgeLookup);
 
-            var todo = new Queue<long>();
-            todo.Enqueue(corners.First());
-
             var visited = new HashSet<long>();
+            var todo = new Queue<(long id, int x, int y)>();
+            todo.Enqueue((corners.First(), 0, 0));
 
-            var strippedTiles = new Dictionary<long, char[,]>
+            /*var strippedTiles = new Dictionary<long, char[,]>
             {
-                [todo.Peek()] = StripEdges(tiles[todo.Peek()])
+                [todo.Peek().id] = StripEdges(tiles[todo.Peek().id])
+            };*/
+
+            // map of the coordinates of each tile, which is populated with the stripped version as we find them
+            var map = new Dictionary<(int x, int y), char[,]>
+            {
+                [(0, 0)] = StripEdges(tiles[todo.Peek().id])
             };
 
+            // walk outwards along each edge from a starting corner and find the matching tile with the correct rotation/flip
             while (todo.Any())
             {
-                long current = todo.Dequeue();
+                (long current, int currentX, int currentY) = todo.Dequeue();
 
                 if (visited.Contains(current))
                 {
@@ -149,11 +165,10 @@ namespace AdventOfCode
                 visited.Add(current);
 
                 char[,] currentTile = tiles[current];
-                //Debug.WriteLine($"Checking tile {current}");
-                //currentTile.Print();
-                //Debug.WriteLine(string.Empty);
 
-                // find the tiles that this one connects to
+                map[(currentX, currentY)] = StripEdges(currentTile);
+                
+                // find the tiles that this one connects to, as previously computed for part 1
                 foreach (HashSet<long> touching in edges.Values.Where(e => e.Contains(current)))
                 {
                     foreach (long next in touching)
@@ -174,24 +189,30 @@ namespace AdventOfCode
                             i++;
 
                             // check current top against next bottom, current left against next right and so one until one matches
-                            if (currentTile.GetRow(0).SequenceEqual(orientation.GetRow(orientation.GetLength(1) - 1)))
+                            if (currentTile.GetRow(currentTile.GetLength(1) - 1).SequenceEqual(orientation.GetRow(0)))
                             {
                                 found = true;
-                                Debug.WriteLine($"Tile {current} matches tile {next} on top row with orientation {i}");
-                            }
-                            else if (currentTile.GetRow(currentTile.GetLength(1) - 1).SequenceEqual(orientation.GetRow(0)))
-                            {
-                                found = true;
+                                todo.Enqueue((next, currentX, currentY + 1));
                                 Debug.WriteLine($"Tile {current} matches tile {next} on bottom row with orientation {i}");
                             }
                             else if (currentTile.GetColumn(currentTile.GetLength(0) - 1).SequenceEqual(orientation.GetColumn(0)))
                             {
                                 found = true;
+                                todo.Enqueue((next, currentX + 1, currentY));
                                 Debug.WriteLine($"Tile {current} matches tile {next} on right column with orientation {i}");
+                            }
+                            else if (currentTile.GetRow(0).SequenceEqual(orientation.GetRow(orientation.GetLength(1) - 1)))
+                            {
+                                // should never happen?
+                                found = true;
+                                todo.Enqueue((next, currentX, currentY - 1));
+                                Debug.WriteLine($"Tile {current} matches tile {next} on top row with orientation {i}");
                             }
                             else if (currentTile.GetColumn(0).SequenceEqual(orientation.GetColumn(orientation.GetLength(0) - 1)))
                             {
+                                // should never happen?
                                 found = true;
+                                todo.Enqueue((next, currentX - 1, currentY));
                                 Debug.WriteLine($"Tile {current} matches tile {next} on left column with orientation {i}");
                             }
 
@@ -199,18 +220,16 @@ namespace AdventOfCode
                             {
                                 // store the current orientation of the tile since that's now the right way round
                                 tiles[next] = orientation;
-                                strippedTiles[next] = StripEdges(orientation);
+                                //strippedTiles[next] = StripEdges(orientation);
                                 
                                 break;
                             }
                         }
-
-                        todo.Enqueue(next);
                     }
                 }
             }
 
-            throw new NotImplementedException();
+            return FlattenMap(map);
         }
 
         private static char[,] StripEdges(char[,] input)
@@ -366,9 +385,82 @@ namespace AdventOfCode
 
             return oneTop == twoBottom || oneLeft == twoRight || oneRight == twoLeft || oneBottom == twoTop;
         }*/
+
+        private static char[,] FlattenMap(Dictionary<(int x, int y), char[,]> map)
+        {
+            int width = map.Keys.Select(k => k.x).Max();
+            int height = map.Keys.Select(k => k.y).Max();
+            int elementWidth = map[(0, 0)].GetLength(0);
+            char[,] output = new char[(height + 1) * elementWidth, (width + 1) * elementWidth];
+
+            for (int y = 0; y <= height; y++)
+            for (int x = 0; x <= width; x++)
+            {
+                var tile = map[(x, y)];
+
+                for (int innerY = 0; innerY < tile.GetLength(0); innerY++)
+                for (int innerX = 0; innerX < tile.GetLength(1); innerX++)
+                {
+                    output[y * elementWidth + innerY, x * elementWidth + innerX] = tile[innerY, innerX];
+                }
+            }
+
+            return output;
+        }
+
+        private static int CountMonsters(char[,] image)
+        {
+            // monster image:
+            // ..................#.
+            // #....##....##....###
+            // .#..#..#..#..#..#...
+
+            int count = 0;
+            
+            // brute force every possible starting location...
+            for (int y = 0; y < image.GetLength(0); y++)
+            {
+                for (int x = 0; x < image.GetLength(1); x++)
+                {
+                    bool found = IsChoppySea(image, x + 18, y)
+                              && IsChoppySea(image, x,      y + 1)
+                              && IsChoppySea(image, x + 5,  y + 1)
+                              && IsChoppySea(image, x + 6,  y + 1)
+                              && IsChoppySea(image, x + 11, y + 1)
+                              && IsChoppySea(image, x + 12, y + 1)
+                              && IsChoppySea(image, x + 17, y + 1)
+                              && IsChoppySea(image, x + 18, y + 1)
+                              && IsChoppySea(image, x + 19, y + 1)
+                              && IsChoppySea(image, x + 1,  y + 2)
+                              && IsChoppySea(image, x + 4,  y + 2)
+                              && IsChoppySea(image, x + 7,  y + 2)
+                              && IsChoppySea(image, x + 10, y + 2)
+                              && IsChoppySea(image, x + 13, y + 2)
+                              && IsChoppySea(image, x + 16, y + 2);
+
+                    if (found)
+                    {
+                        count++;
+                    }
+                }
+            }
+
+            return count;
+        }
+
+        private static bool IsChoppySea(char[,] image, int x, int y)
+        {
+            if (x >= 0 && x < image.GetLength(1) && y >= 0 && y < image.GetLength(0))
+            {
+                return image[y, x] == '#';
+            }
+            
+            // assume out of bounds is calm water
+            return false;
+        }
     }
 
-    // Mostly copied from https://stackoverflow.com/a/51241629
+    // Mostly copied from https://stackoverflow.com/a/51241629 then adapted
     public static class ArrayExtensions
     {
         public static char[] GetColumn(this char[,] matrix, int columnNumber)
