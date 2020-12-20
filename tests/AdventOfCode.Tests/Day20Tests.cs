@@ -31,19 +31,9 @@ namespace AdventOfCode.Tests
         }
 
         [Fact]
-        public void Part1_SampleInput_ProducesCorrectResponse()
-        {
-            var expected = -1;
-
-            var result = solver.Part1(GetSampleInput());
-
-            Assert.Equal(expected, result);
-        }
-
-        [Fact]
         public void Part1_RealInput_ProducesCorrectResponse()
         {
-            var expected = -1;
+            var expected = 22878471088273;
 
             var result = solver.Part1(GetRealInput());
             output.WriteLine($"Day 20 - Part 1 - {result}");
