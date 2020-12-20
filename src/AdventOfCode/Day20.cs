@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using AdventOfCode.Utilities;
 using MoreLinq;
@@ -22,6 +23,8 @@ namespace AdventOfCode
 
             // look up of edge pattern to tile(s)
             var edges = new Dictionary<string, HashSet<long>>();
+            var edgeLookup = new Dictionary<long, string[]>();
+            var corners = new HashSet<long>(); // forward and backwards will show up twice, so use a Set
 
             foreach ((long id, char[,] grid) in tiles)
             {
@@ -76,14 +79,55 @@ namespace AdventOfCode
                 edges[bottomFlip].Add(id);
                 edges[leftFlip].Add(id);
                 edges[rightFlip].Add(id);
+
+                edgeLookup[id] = new[] {top, bottom, left, right, topFlip, bottomFlip, leftFlip, rightFlip};
             }
 
-            /*foreach ((string pattern, HashSet<long> ids) in edges)
+            /*foreach ((long id, string[] tileEdges) in edgeLookup)
             {
+                int inner = 0, outer = 0;
                 
+                foreach (string edge in tileEdges)
+                {
+                    if (edges[edge].Count == 2)
+                    {
+                        inner++;
+                    }
+                    else if (edges[edge].Count == 1)
+                    {
+                        outer++;
+                    }
+                }
+
+                if (inner == 2)
+                {
+                    corners.Add(id);
+                }
             }*/
+
+            IEnumerable<long> outerTiles = edges.Values.Where(e => e.Count == 1)
+                                                .Select(e => e.Single())
+                                                .Distinct();
+
+            // find the outer tiles that contain two outer edges instead of just one - those are the corners
+            foreach (long id in outerTiles)
+            {
+                int count = 0;
+                
+                foreach (string edge in edgeLookup[id])
+                {
+                    count += edges[edge].Count;
+                }
+                
+                Debug.WriteLine($"{id}: {count}");
+
+                if (count == 12)
+                {
+                    corners.Add(id);
+                }
+            }
             
-            return 0;
+            return corners.Aggregate(1L, (current, next) => current * next);
         }
 
         public long Part2(string[] input)
