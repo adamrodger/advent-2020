@@ -11,26 +11,26 @@ namespace AdventOfCode
     /// </summary>
     public class Day20
     {
+        /// <summary>
+        /// Find the IDs of the 4 corner tiles and multiply them all
+        /// </summary>
         public long Part1(string[] input)
         {
             Dictionary<long, char[,]> tiles = ParseInput(input);
-
-            // 144 tiles, 12x12 arrangement
-
-            // get the outer edges of each tile and find the tiles where exactly 2 edges match another tile - those are the corners
-
             (Dictionary<int, HashSet<long>> edges, Dictionary<long, int[]> edgeLookup) = MatchTiles(tiles);
-            HashSet<long> corners = FindCorners(edges, edgeLookup);
+            List<long> corners = FindCorners(edges, edgeLookup);
             return corners.Aggregate(1L, (current, next) => current * next);
         }
 
+        /// <summary>
+        /// Stitch all the tiles into a single image (matching tiles by their edges and then flipping/rotating properly)
+        /// then search the image for sea monsters and find how many cells contain choppy sea
+        /// </summary>
         public long Part2(string[] input)
         {
             Dictionary<long, char[,]> tiles = ParseInput(input);
 
-            // stitch the tiles together into an image
             char[,] image = Stitch(tiles);
-            //image.Print();
 
             // rotate/flip the image until you start finding sea monsters
             foreach (char[,] permutation in FlipAndRotatePermutations(image))
@@ -70,16 +70,12 @@ namespace AdventOfCode
         /// <param name="edges">Tile to edge lookup</param>
         /// <param name="edgeLookup">Edge to tile(s) lookup</param>
         /// <returns>Four corner tile IDs</returns>
-        private static HashSet<long> FindCorners(Dictionary<int, HashSet<long>> edges, Dictionary<long, int[]> edgeLookup)
+        private static List<long> FindCorners(Dictionary<int, HashSet<long>> edges, Dictionary<long, int[]> edgeLookup)
         {
-            var corners = new HashSet<long>(); // TODO: don't think this needs to be a set any more
+            var corners = new List<long>(4);
 
-            IEnumerable<long> outerTiles = edges.Values.Where(e => e.Count == 1) // edges which have nothing else touching them
-                                                .Select(e => e.Single())
-                                                .Distinct();
-
-            // find the outer tiles that contain two outer edges instead of just one - those are the corners
-            foreach (long id in outerTiles)
+            // corner tiles have 2 disconnected edges whereas everything else has either 0 or 1
+            foreach (long id in edgeLookup.Keys)
             {
                 int count = edgeLookup[id].Sum(edge => edges[edge].Count);
 
@@ -185,7 +181,7 @@ namespace AdventOfCode
             // start at a corner, and walk outwards finding the next tile and so on
             // through all the permutations of flip/rotate until you've got the final image
             (Dictionary<int, HashSet<long>> edges, Dictionary<long, int[]> edgeLookup) = MatchTiles(tiles);
-            HashSet<long> corners = FindCorners(edges, edgeLookup);
+            List<long> corners = FindCorners(edges, edgeLookup);
 
             var visited = new HashSet<long>();
             var todo = new Queue<(long id, int x, int y)>();
@@ -193,10 +189,7 @@ namespace AdventOfCode
 
             // map of the coordinates of each tile, which is populated with the stripped version as we find them
             // note: it is assumed the first corner is the top-left, otherwise a way of identifying which is which is needed
-            var map = new Dictionary<(int x, int y), char[,]>
-            {
-                [(0, 0)] = StripEdges(tiles[todo.Peek().id]) // TODO: not needed I don't think
-            };
+            var map = new Dictionary<(int x, int y), char[,]>();
 
             // walk outwards along each edge from the top left corner and find the matching tile with the correct rotation/flip
             while (todo.Any())
@@ -227,40 +220,26 @@ namespace AdventOfCode
                         
                         // check current against the flip/rotate permutations of next to work out which way round next needs to be and on which edge
                         var nextPermutations = FlipAndRotatePermutations(tiles[next]).ToArray();
-                        //int i = 0;
                         
                         foreach (char[,] orientation in nextPermutations)
                         {
                             bool found = false;
-                            //i++;
 
                             // check current top against next bottom, current left against next right and so one until one matches
                             if (currentTile.GetRow(currentTile.GetLength(1) - 1).SequenceEqual(orientation.GetRow(0)))
                             {
+                                // match on bottom edge of current with top edge of next
                                 found = true;
                                 todo.Enqueue((next, currentX, currentY + 1));
-                                //Debug.WriteLine($"Tile {current} matches tile {next} on bottom row with orientation {i}");
                             }
                             else if (currentTile.GetColumn(currentTile.GetLength(0) - 1).SequenceEqual(orientation.GetColumn(0)))
                             {
+                                // match on right edge of current with left edge of next
                                 found = true;
                                 todo.Enqueue((next, currentX + 1, currentY));
-                                //Debug.WriteLine($"Tile {current} matches tile {next} on right column with orientation {i}");
                             }
-                            else if (currentTile.GetRow(0).SequenceEqual(orientation.GetRow(orientation.GetLength(1) - 1)))
-                            {
-                                // TODO: should never happen?
-                                found = true;
-                                todo.Enqueue((next, currentX, currentY - 1));
-                                //Debug.WriteLine($"Tile {current} matches tile {next} on top row with orientation {i}");
-                            }
-                            else if (currentTile.GetColumn(0).SequenceEqual(orientation.GetColumn(orientation.GetLength(0) - 1)))
-                            {
-                                // TODO: should never happen?
-                                found = true;
-                                todo.Enqueue((next, currentX - 1, currentY));
-                                //Debug.WriteLine($"Tile {current} matches tile {next} on left column with orientation {i}");
-                            }
+                            
+                            // note: don't need to do top or left edge of current because of the breadth first search
 
                             if (found)
                             {
@@ -363,8 +342,8 @@ namespace AdventOfCode
         {
             int width = map.Keys.Select(k => k.x).Max();
             int height = map.Keys.Select(k => k.y).Max();
-            int elementWidth = map[(0, 0)].GetLength(0);
-            char[,] output = new char[(height + 1) * elementWidth, (width + 1) * elementWidth];
+            int tileSize = map[(0, 0)].GetLength(0);
+            char[,] output = new char[(height + 1) * tileSize, (width + 1) * tileSize];
 
             for (int y = 0; y <= height; y++)
             for (int x = 0; x <= width; x++)
@@ -374,7 +353,7 @@ namespace AdventOfCode
                 for (int innerY = 0; innerY < tile.GetLength(0); innerY++)
                 for (int innerX = 0; innerX < tile.GetLength(1); innerX++)
                 {
-                    output[y * elementWidth + innerY, x * elementWidth + innerX] = tile[innerY, innerX];
+                    output[y * tileSize + innerY, x * tileSize + innerX] = tile[innerY, innerX];
                 }
             }
 
@@ -391,13 +370,16 @@ namespace AdventOfCode
             // ..................#.
             // #....##....##....###
             // .#..#..#..#..#..#...
+
+            const int monsterWidth = 20;
+            const int monsterHeight = 3;
             
             int count = 0;
             
             // brute force every possible starting location...
-            for (int y = 0; y < image.GetLength(0); y++) // TODO: subtract monster height - no point searching bottom row for example
+            for (int y = 0; y < image.GetLength(0) - monsterHeight; y++)
             {
-                for (int x = 0; x < image.GetLength(1); x++) // TODO: subtract monster width
+                for (int x = 0; x < image.GetLength(1) - monsterWidth; x++)
                 {
                     bool found = IsChoppySea(image, x + 18, y)
                               && IsChoppySea(image, x,      y + 1)
