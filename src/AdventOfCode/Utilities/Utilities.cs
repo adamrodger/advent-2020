@@ -113,15 +113,20 @@
             return new Point2D(-1, -1);
         }
 
-        public static string Print<T>(this T[,] grid)
+        public static string Print<T>(this T[,] grid, bool print = true)
         {
             var builder = new StringBuilder(grid.GetLength(0) * (grid.GetLength(1) + Environment.NewLine.Length));
             grid.ForEach(cell => builder.Append(cell), () => builder.AppendLine());
             builder.AppendLine();
 
             string result = builder.ToString();
-            Debug.Write(result);
-            Debug.Flush();
+            
+            if (print)
+            {
+                Debug.Write(result);
+                Debug.Flush();
+            }
+
             return result;
         }
 
