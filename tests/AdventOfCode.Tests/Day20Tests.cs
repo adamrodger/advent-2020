@@ -22,14 +22,6 @@ namespace AdventOfCode.Tests
             return input;
         }
 
-        private static string[] GetSampleInput()
-        {
-            return new string[]
-            {
-                
-            };
-        }
-
         [Fact]
         public void Part1_RealInput_ProducesCorrectResponse()
         {
@@ -42,37 +34,14 @@ namespace AdventOfCode.Tests
         }
 
         [Fact]
-        public void Part2_SampleInput_ProducesCorrectResponse()
-        {
-            var expected = -1;
-
-            var result = solver.Part2(GetSampleInput());
-
-            Assert.Equal(expected, result);
-        }
-
-        [Fact]
         public void Part2_RealInput_ProducesCorrectResponse()
         {
-            var expected = -1;
+            var expected = 1680;
 
             var result = solver.Part2(GetRealInput());
             output.WriteLine($"Day 20 - Part 2 - {result}");
 
             Assert.Equal(expected, result);
         }
-
-        /*[Fact]
-        public void FlipHorizontal()
-        {
-            char[,] input = new char[,]
-            {
-                { {'#', '#', '.'} },
-                { {'.', '#', '#'} },
-                { {'#', '.', '#'} }
-            };
-            
-            
-        }*/
     }
 }

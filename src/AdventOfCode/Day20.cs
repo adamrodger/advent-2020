@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using AdventOfCode.Utilities;
 using MoreLinq;
@@ -18,11 +17,10 @@ namespace AdventOfCode
 
             // 144 tiles, 12x12 arrangement
 
-            // get the outer edges of each tile (forward and backwards to allow for flipping/rotating)
-            // and find the tiles where exactly 2 edges match another tile - those are the corners
+            // get the outer edges of each tile and find the tiles where exactly 2 edges match another tile - those are the corners
 
-            (Dictionary<int, HashSet<long>> edges, Dictionary<long, int[]> edgeLookup) = GetEdgeLookups(tiles);
-            HashSet<long> corners = FindCorners(tiles, edges, edgeLookup);
+            (Dictionary<int, HashSet<long>> edges, Dictionary<long, int[]> edgeLookup) = MatchTiles(tiles);
+            HashSet<long> corners = FindCorners(edges, edgeLookup);
             return corners.Aggregate(1L, (current, next) => current * next);
         }
 
@@ -32,7 +30,7 @@ namespace AdventOfCode
 
             // stitch the tiles together into an image
             char[,] image = Stitch(tiles);
-            image.Print();
+            //image.Print();
 
             // rotate/flip the image until you start finding sea monsters
             foreach (char[,] permutation in FlipAndRotatePermutations(image))
@@ -48,11 +46,35 @@ namespace AdventOfCode
             throw new InvalidOperationException("Didn't find any monsters :(");
         }
 
-        private static HashSet<long> FindCorners(Dictionary<long, char[,]> tiles, Dictionary<int, HashSet<long>> edges, Dictionary<long, int[]> edgeLookup)
+        /// <summary>
+        /// Parse the input into a lookup of tiles -> their ASCII art representation
+        /// </summary>
+        private static Dictionary<long, char[,]> ParseInput(string[] input)
         {
-            var corners = new HashSet<long>(); // forward and backwards will show up twice, so use a Set
+            var tiles = new Dictionary<long, char[,]>();
 
-            IEnumerable<long> outerTiles = edges.Values.Where(e => e.Count == 1) // edge which have nothing else touching them
+            foreach (IEnumerable<string> tile in input.Split(string.Empty))
+            {
+                string id = tile.First()[5..^1];
+                char[,] grid = tile.Skip(1).ToArray().ToGrid();
+
+                tiles[long.Parse(id)] = grid;
+            }
+
+            return tiles;
+        }
+
+        /// <summary>
+        /// Given a collection of edges and which tile(s) match those edges, work out which are corner tiles
+        /// </summary>
+        /// <param name="edges">Tile to edge lookup</param>
+        /// <param name="edgeLookup">Edge to tile(s) lookup</param>
+        /// <returns>Four corner tile IDs</returns>
+        private static HashSet<long> FindCorners(Dictionary<int, HashSet<long>> edges, Dictionary<long, int[]> edgeLookup)
+        {
+            var corners = new HashSet<long>(); // TODO: don't think this needs to be a set any more
+
+            IEnumerable<long> outerTiles = edges.Values.Where(e => e.Count == 1) // edges which have nothing else touching them
                                                 .Select(e => e.Single())
                                                 .Distinct();
 
@@ -61,9 +83,8 @@ namespace AdventOfCode
             {
                 int count = edgeLookup[id].Sum(edge => edges[edge].Count);
 
-                Debug.WriteLine($"{id}: {count}");
-
-                if (count == 6) // 2 for each of the connected edges (this and the connected tile) + 1 for each of the unconnected == 2 + 2 + 1 + 1 == 6
+                // 2 for each of the connected edges (this and the connected tile) + 1 for each of the unconnected == 2 + 2 + 1 + 1 == 6
+                if (count == 6)
                 {
                     corners.Add(id);
                 }
@@ -72,23 +93,32 @@ namespace AdventOfCode
             return corners;
         }
 
-        private static (Dictionary<int, HashSet<long>> edges, Dictionary<long, int[]> edgeLookup) GetEdgeLookups(Dictionary<long, char[,]> tiles)
+        /// <summary>
+        /// Given a set of tiles, work out which tiles match each other on an edge
+        /// </summary>
+        /// <param name="tiles">Tiles keyed by ID</param>
+        /// <returns>
+        /// - A lookup of tile -> it's edges (encoded as a number)
+        /// - A lookup of edge -> tile(s) which use it
+        /// </returns>
+        private static (Dictionary<int, HashSet<long>> edges, Dictionary<long, int[]> edgeLookup) MatchTiles(Dictionary<long, char[,]> tiles)
         {
-            var edges = new Dictionary<int, HashSet<long>>(); // look up of edge pattern to tile(s)
+            var edges = new Dictionary<int, HashSet<long>>();
             var edgeLookup = new Dictionary<long, int[]>();
 
             foreach ((long id, char[,] grid) in tiles)
             {
-                string top = new string(grid.GetRow(0));
-                string bottom = new string(grid.GetRow(grid.GetLength(0) - 1));
-                string left = new string(grid.GetColumn(0));
-                string right = new string(grid.GetColumn(grid.GetLength(1) - 1));
+                char[] top = grid.GetRow(0);
+                char[] bottom = grid.GetRow(grid.GetLength(0) - 1);
+                char[] left = grid.GetColumn(0);
+                char[] right = grid.GetColumn(grid.GetLength(1) - 1);
 
-                string topFlip = new string(grid.GetRow(0).Reverse().ToArray());
-                string bottomFlip = new string(grid.GetRow(grid.GetLength(0) - 1).Reverse().ToArray());
-                string leftFlip = new string(grid.GetColumn(0).Reverse().ToArray());
-                string rightFlip = new string(grid.GetColumn(grid.GetLength(1) - 1).Reverse().ToArray());
+                char[] topFlip = grid.GetRow(0).Reverse().ToArray();
+                char[] bottomFlip = grid.GetRow(grid.GetLength(0) - 1).Reverse().ToArray();
+                char[] leftFlip = grid.GetColumn(0).Reverse().ToArray();
+                char[] rightFlip = grid.GetColumn(grid.GetLength(1) - 1).Reverse().ToArray();
 
+                // use the minimal numeric representation so that the flipped-ness doesn't matter
                 int topNum    = Math.Min(NumericRepresentation(top),    NumericRepresentation(topFlip));
                 int bottomNum = Math.Min(NumericRepresentation(bottom), NumericRepresentation(bottomFlip));
                 int leftNum   = Math.Min(NumericRepresentation(left),   NumericRepresentation(leftFlip));
@@ -125,34 +155,50 @@ namespace AdventOfCode
             return (edges, edgeLookup);
         }
 
-        private static int NumericRepresentation(string rowOrColumn)
+        /// <summary>
+        /// Converts a series of dots and hashes to a numeric representation by treating # as 1 and . as 0 then parsing as binary
+        /// </summary>
+        /// <param name="edge">All values for a given edge</param>
+        /// <returns>Numeric representation of the edge values</returns>
+        private static int NumericRepresentation(char[] edge)
         {
-            return Convert.ToInt32(rowOrColumn.Replace('#', '1').Replace('.', '0'), 2);
+            int n = 0;
+            
+            for (int i = 0; i < edge.Length; i++)
+            {
+                if (edge[i] == '#')
+                {
+                    n += 1 << i;
+                }
+            }
+
+            return n;
         }
 
-        private char[,] Stitch(Dictionary<long, char[,]> tiles)
+        /// <summary>
+        /// Stitch all the given tiles together into a single large image that can be searched for monsters :)
+        /// </summary>
+        /// <param name="tiles">Image tiles, which may be in random orientations</param>
+        /// <returns>Single stitched-together image created by matching and reorienting the tiles</returns>
+        private static char[,] Stitch(Dictionary<long, char[,]> tiles)
         {
             // start at a corner, and walk outwards finding the next tile and so on
             // through all the permutations of flip/rotate until you've got the final image
-            (Dictionary<int, HashSet<long>> edges, Dictionary<long, int[]> edgeLookup) = GetEdgeLookups(tiles);
-            HashSet<long> corners = FindCorners(tiles, edges, edgeLookup);
+            (Dictionary<int, HashSet<long>> edges, Dictionary<long, int[]> edgeLookup) = MatchTiles(tiles);
+            HashSet<long> corners = FindCorners(edges, edgeLookup);
 
             var visited = new HashSet<long>();
             var todo = new Queue<(long id, int x, int y)>();
             todo.Enqueue((corners.First(), 0, 0));
 
-            /*var strippedTiles = new Dictionary<long, char[,]>
-            {
-                [todo.Peek().id] = StripEdges(tiles[todo.Peek().id])
-            };*/
-
             // map of the coordinates of each tile, which is populated with the stripped version as we find them
+            // note: it is assumed the first corner is the top-left, otherwise a way of identifying which is which is needed
             var map = new Dictionary<(int x, int y), char[,]>
             {
-                [(0, 0)] = StripEdges(tiles[todo.Peek().id])
+                [(0, 0)] = StripEdges(tiles[todo.Peek().id]) // TODO: not needed I don't think
             };
 
-            // walk outwards along each edge from a starting corner and find the matching tile with the correct rotation/flip
+            // walk outwards along each edge from the top left corner and find the matching tile with the correct rotation/flip
             while (todo.Any())
             {
                 (long current, int currentX, int currentY) = todo.Dequeue();
@@ -175,53 +221,51 @@ namespace AdventOfCode
                     {
                         if (next == current)
                         {
-                            // artifact of how we match the edges
+                            // anomaly of how we match the edges
                             continue;
                         }
                         
-                        // check current against the flip/rotate permutations of next to work out which way next needs to be and on which edge
+                        // check current against the flip/rotate permutations of next to work out which way round next needs to be and on which edge
                         var nextPermutations = FlipAndRotatePermutations(tiles[next]).ToArray();
-                        int i = 0;
+                        //int i = 0;
                         
                         foreach (char[,] orientation in nextPermutations)
                         {
                             bool found = false;
-                            i++;
+                            //i++;
 
                             // check current top against next bottom, current left against next right and so one until one matches
                             if (currentTile.GetRow(currentTile.GetLength(1) - 1).SequenceEqual(orientation.GetRow(0)))
                             {
                                 found = true;
                                 todo.Enqueue((next, currentX, currentY + 1));
-                                Debug.WriteLine($"Tile {current} matches tile {next} on bottom row with orientation {i}");
+                                //Debug.WriteLine($"Tile {current} matches tile {next} on bottom row with orientation {i}");
                             }
                             else if (currentTile.GetColumn(currentTile.GetLength(0) - 1).SequenceEqual(orientation.GetColumn(0)))
                             {
                                 found = true;
                                 todo.Enqueue((next, currentX + 1, currentY));
-                                Debug.WriteLine($"Tile {current} matches tile {next} on right column with orientation {i}");
+                                //Debug.WriteLine($"Tile {current} matches tile {next} on right column with orientation {i}");
                             }
                             else if (currentTile.GetRow(0).SequenceEqual(orientation.GetRow(orientation.GetLength(1) - 1)))
                             {
-                                // should never happen?
+                                // TODO: should never happen?
                                 found = true;
                                 todo.Enqueue((next, currentX, currentY - 1));
-                                Debug.WriteLine($"Tile {current} matches tile {next} on top row with orientation {i}");
+                                //Debug.WriteLine($"Tile {current} matches tile {next} on top row with orientation {i}");
                             }
                             else if (currentTile.GetColumn(0).SequenceEqual(orientation.GetColumn(orientation.GetLength(0) - 1)))
                             {
-                                // should never happen?
+                                // TODO: should never happen?
                                 found = true;
                                 todo.Enqueue((next, currentX - 1, currentY));
-                                Debug.WriteLine($"Tile {current} matches tile {next} on left column with orientation {i}");
+                                //Debug.WriteLine($"Tile {current} matches tile {next} on left column with orientation {i}");
                             }
 
                             if (found)
                             {
                                 // store the current orientation of the tile since that's now the right way round
                                 tiles[next] = orientation;
-                                //strippedTiles[next] = StripEdges(orientation);
-                                
                                 break;
                             }
                         }
@@ -232,6 +276,11 @@ namespace AdventOfCode
             return FlattenMap(map);
         }
 
+        /// <summary>
+        /// Strip the outer edges of the tile and just leave the inner cells
+        /// </summary>
+        /// <param name="input">Input tile</param>
+        /// <returns>Same tile but with all edges removed</returns>
         private static char[,] StripEdges(char[,] input)
         {
             var output = new char[input.GetLength(0) - 2, input.GetLength(1) - 2];
@@ -247,6 +296,9 @@ namespace AdventOfCode
             return output;
         }
 
+        /// <summary>
+        /// All permutations of flipping and rotating the given tile
+        /// </summary>
         private static IEnumerable<char[,]> FlipAndRotatePermutations(char[,] input)
         {
             yield return input;
@@ -267,25 +319,12 @@ namespace AdventOfCode
             };
         }
 
-        private static Dictionary<long, char[,]> ParseInput(string[] input)
-        {
-            var tiles = new Dictionary<long, char[,]>();
-            
-            foreach (IEnumerable<string> tile in input.Split(string.Empty))
-            {
-                string id = tile.First()[5..^1];
-                char[,] grid = tile.Skip(1).ToArray().ToGrid();
-
-                tiles[long.Parse(id)] = grid;
-            }
-
-            return tiles;
-        }
-
+        /// <summary>
+        /// Flip a tile horizontally
+        /// </summary>
         public static char[,] FlipHorizontal(char[,] input)
         {
             int height = input.GetLength(0);
-            //int width = input.GetLength(1);
             char[,] output = new char[input.GetLength(0), input.GetLength(1)];
 
             for (int y = 0; y < input.GetLength(0); y++)
@@ -299,27 +338,11 @@ namespace AdventOfCode
             return output;
         }
 
-        /*public static char[,] FlipVertical(char[,] input)
-        {
-            int height = input.GetLength(0);
-            int width = input.GetLength(1);
-            char[,] output = new char[input.GetLength(0), input.GetLength(1)];
-
-            for (int y = 0; y < input.GetLength(0); y++)
-            {
-                for (int x = 0; x < input.GetLength(1); x++)
-                {
-                    output[y, width - x] = input[y, x];
-                }
-            }
-
-            return output;
-        }*/
-
+        /// <summary>
+        /// Rotate the tile 90 degrees
+        /// </summary>
         public static char[,] Rotate90(char[,] input)
         {
-            //int height = input.GetLength(0);
-            //int width = input.GetLength(1);
             char[,] output = new char[input.GetLength(0), input.GetLength(1)];
 
             for (int y = 0; y < input.GetLength(0); y++)
@@ -333,59 +356,9 @@ namespace AdventOfCode
             return output;
         }
 
-        /*public static char[,] Rotate180(char[,] input)
-        {
-            int height = input.GetLength(0);
-            int width = input.GetLength(1);
-            char[,] output = new char[input.GetLength(0), input.GetLength(1)];
-
-            for (int y = 0; y < input.GetLength(0); y++)
-            {
-                for (int x = 0; x < input.GetLength(1); x++)
-                {
-                    output[height - y, width - x] = input[y, x];
-                }
-            }
-
-            return output;
-        }
-
-        public static char[,] Rotate270(char[,] input)
-        {
-            int height = input.GetLength(0);
-            int width = input.GetLength(1);
-            char[,] output = new char[input.GetLength(0), input.GetLength(1)];
-
-            for (int y = 0; y < input.GetLength(0); y++)
-            {
-                for (int x = 0; x < input.GetLength(1); x++)
-                {
-                    output[x, -y] = input[y, x];
-                }
-            }
-
-            return output;
-        }*/
-
         /// <summary>
-        /// Makes sure at least one edge of the two are aligned (i.e. match exactly)
+        /// Given a lookup of co-ordinates to tiles, flatten the tiles into a single image
         /// </summary>
-        /*private static bool AreAligned(char[,] one, char[,] two)
-        {
-            // top one, bottom two
-            string oneTop = new string(one.GetRow(0));
-            string oneBottom = new string(one.GetRow(one.GetLength(0) - 1));
-            string oneLeft = new string(one.GetColumn(0));
-            string oneRight = new string(one.GetColumn(one.GetLength(1) - 1));
-
-            string twoTop = new string(two.GetRow(0));
-            string twoBottom = new string(two.GetRow(two.GetLength(0) - 1));
-            string twoLeft = new string(two.GetColumn(0));
-            string twoRight = new string(two.GetColumn(two.GetLength(1) - 1));
-
-            return oneTop == twoBottom || oneLeft == twoRight || oneRight == twoLeft || oneBottom == twoTop;
-        }*/
-
         private static char[,] FlattenMap(Dictionary<(int x, int y), char[,]> map)
         {
             int width = map.Keys.Select(k => k.x).Max();
@@ -408,19 +381,23 @@ namespace AdventOfCode
             return output;
         }
 
+        /// <summary>
+        /// Count how many monsters the image contains
+        /// </summary>
         private static int CountMonsters(char[,] image)
         {
             // monster image:
+            //
             // ..................#.
             // #....##....##....###
             // .#..#..#..#..#..#...
-
+            
             int count = 0;
             
             // brute force every possible starting location...
-            for (int y = 0; y < image.GetLength(0); y++)
+            for (int y = 0; y < image.GetLength(0); y++) // TODO: subtract monster height - no point searching bottom row for example
             {
-                for (int x = 0; x < image.GetLength(1); x++)
+                for (int x = 0; x < image.GetLength(1); x++) // TODO: subtract monster width
                 {
                     bool found = IsChoppySea(image, x + 18, y)
                               && IsChoppySea(image, x,      y + 1)
@@ -448,6 +425,9 @@ namespace AdventOfCode
             return count;
         }
 
+        /// <summary>
+        /// Check if a cell is in bounds and, if so, contains choppy sea instead of calm sea
+        /// </summary>
         private static bool IsChoppySea(char[,] image, int x, int y)
         {
             if (x >= 0 && x < image.GetLength(1) && y >= 0 && y < image.GetLength(0))
@@ -460,7 +440,6 @@ namespace AdventOfCode
         }
     }
 
-    // Mostly copied from https://stackoverflow.com/a/51241629 then adapted
     public static class ArrayExtensions
     {
         public static char[] GetColumn(this char[,] matrix, int columnNumber)
