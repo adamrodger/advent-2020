@@ -11,99 +11,86 @@ namespace AdventOfCode
     {
         public string Part1(string[] input)
         {
-            var cups = new LinkedList<int>(input[0].Select(c => int.Parse(c.ToString())));
-            LinkedListNode<int> current = Play(cups, 100);
+            int[] cups = input[0].Select(c => int.Parse(c.ToString())).ToArray();
+            IList<int> result = Play(cups, 100);
 
             // collect the order
             var builder = new StringBuilder();
+            int current = result[1];
 
-            while (true)
+            do
             {
-                current = current.Next ?? cups.First;
-
-                if (current.Value == 1)
-                {
-                    break;
-                }
-                
-                builder.Append(current.Value);
-            }
+                builder.Append(current);
+                current = result[current];
+            } while (current != 1);
 
             return builder.ToString();
         }
 
         public long Part2(string[] input)
         {
-            IEnumerable<int> initial = input[0].Select(c => int.Parse(c.ToString())).ToArray();
-            int max = initial.Max();
-            var extra = Enumerable.Range(max + 1, 1_000_000 - max);
-            
-            var cups = new LinkedList<int>(initial.Concat(extra));
-            LinkedListNode<int> current = Play(cups, 10_000_000);
+            int[] cups = input[0].Select(c => int.Parse(c.ToString())).ToArray();
+            cups = cups.Concat(Enumerable.Range(1, 1_000_000).Skip(cups.Length)).ToArray();
+            IList<int> result = Play(cups, 10_000_000);
 
             // multiply the two nodes after node 1
-            var answer1 = current.Next ?? cups.First;
-            var answer2 = answer1.Next ?? cups.First;
+            int answer1 = result[1];
+            long answer2 = result[answer1];
             
-            return ((long)answer1.Value) * answer2.Value;
+            return answer1 * answer2;
         }
 
         /// <summary>
         /// Play the game of cups
         /// </summary>
-        /// <param name="cups">Starting cup layout</param>
+        /// <param name="input">Starting cup layout</param>
         /// <param name="iterations">Number of game iterations</param>
-        /// <returns>The cup with value 1 after the game has been played</returns>
-        /// <remarks>The cups layout is modified directly during the game</remarks>
-        private static LinkedListNode<int> Play(LinkedList<int> cups, int iterations)
+        /// <returns>All cups, with a reference to the next cup in each</returns>
+        private static IList<int> Play(int[] input, int iterations)
         {
-            int max = cups.Count;
+            // create a lookup where index is cup number and value is next cup number
+            // note: this is effectively 1-indexed because cups[0] is unused
+            int[] cups = new int[input.Length + 1];
 
-            // build an index to make the Find() faster
-            var lookup = new Dictionary<int, LinkedListNode<int>>();
-            var current = cups.First;
-
-            do
+            for (int i = 0; i < input.Length - 1; i++)
             {
-                lookup[current.Value] = current;
-                current = current.Next;
-            } while (current != null);
+                int x = input[i];
+                cups[x] = input[i + 1];
+            }
 
-            // reset current ready for the game
-            current = cups.First;
+            // make it cyclic
+            cups[input.Last()] = input.First();
+
+            // start at the first cup
+            int current = input.First();
 
             for (int i = 0; i < iterations; i++)
             {
-                // remove 3 from current
-                LinkedListNode<int> next1 = current.Next ?? cups.First;
-                LinkedListNode<int> next2 = next1.Next ?? cups.First;
-                LinkedListNode<int> next3 = next2.Next ?? cups.First;
-
-                cups.Remove(next1);
-                cups.Remove(next2);
-                cups.Remove(next3);
+                // 3 cups are chopped out
+                int next1 = cups[current];
+                int next2 = cups[next1];
+                int next3 = cups[next2];
+                cups[current] = cups[next3];
 
                 // pick the destination - wrap around if it goes too low and make sure destination isn't in removed cups
-                int destination = current.Value - 1;
-                destination = destination < 1 ? max : destination;
+                int destination = current;
 
-                while (destination == next1.Value || destination == next2.Value || destination == next3.Value)
+                do
                 {
                     destination--;
-                    destination = destination < 1 ? max : destination;
-                }
+                    destination = destination < 1 ? cups.Length - 1 : destination;
+                } while (destination == next1 || destination == next2 || destination == next3);
 
-                // insert the 3 cups
-                LinkedListNode<int> insert = lookup[destination];
-                cups.AddAfter(insert, next1);
-                cups.AddAfter(next1,  next2);
-                cups.AddAfter(next2,  next3);
+                // insert the 3 cups between the destination and its current pointer
+                int temp = cups[destination];
+                cups[destination] = next1;
+                cups[next3] = temp;
 
                 // advance current
-                current = current.Next ?? cups.First;
+                current = cups[current];
             }
 
-            return lookup[1];
+            return cups;
         }
     }
 }
